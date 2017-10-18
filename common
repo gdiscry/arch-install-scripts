@@ -64,7 +64,11 @@ in_array() {
 }
 
 chroot_add_mount() {
-  mount "$@" && CHROOT_ACTIVE_MOUNTS=("$2" "${CHROOT_ACTIVE_MOUNTS[@]}")
+  mount "$@" || return 1
+  mapfile -t mount_paths < <( findmnt -Rln -o TARGET "$2" )
+  for mp in "${mount_paths[@]}"; do
+    CHROOT_ACTIVE_MOUNTS=("$mp" "${CHROOT_ACTIVE_MOUNTS[@]}")
+  done
 }
 
 chroot_maybe_add_mount() {
@@ -79,7 +83,7 @@ chroot_setup() {
   [[ $(trap -p EXIT) ]] && die '(BUG): attempting to overwrite existing EXIT trap'
   trap 'chroot_teardown' EXIT
 
-  chroot_maybe_add_mount "! mountpoint -q '$1'" "$1" "$1" --bind &&
+  chroot_maybe_add_mount "! mountpoint -q '$1'" "$1" "$1" --rbind &&
   chroot_add_mount proc "$1/proc" -t proc -o nosuid,noexec,nodev &&
   chroot_add_mount sys "$1/sys" -t sysfs -o nosuid,noexec,nodev,ro &&
   ignore_error chroot_maybe_add_mount "[[ -d '$1/sys/firmware/efi/efivars' ]]" \
